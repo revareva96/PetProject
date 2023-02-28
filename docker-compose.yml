@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:14.4-alpine
+    container_name: cigardb
+    networks:
+      - network
+    ports:
+      - "5433:5432"
+    volumes:
+#      образ psql подхватит эти файлы и возсоздаст данные, если внешний том пуст
+#      - ./sql:/docker-entrypoint-initdb.d
+#      внешний том
+      - cigar_database:/var/lib/postgresql/data/
+    environment:
+      POSTGRES_DB: cigar_db
+      POSTGRES_USER: cigar
+      POSTGRES_PASSWORD: cigar
+#    env_file:
+#      - ./.env.dev
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+
+  pgadmin:
+    image: dpage/pgadmin4:5.7
+    container_name: pgadmin
+    networks:
+      - network
+    environment:
+      PGADMIN_DEFAULT_EMAIL: "revarevavla91@yandex.ru"
+      PGADMIN_DEFAULT_PASSWORD: "cigar"
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    volumes:
+      - cigar_pgadmin:/var/lib/pgadmin
+    ports:
+      - "5050:80"
+    links:
+      - "db:db"
+    restart: unless-stopped
+#    deploy:
+#      resources:
+#        limits:
+#          cpus: '0.5'
+#          memory: 1G
+
+  cigar_backend:
+    image: cigar_project_back:1.0.1
+    container_name: backend
+    networks:
+      - network
+    ports:
+      - "9999:5051"
+    restart: always
+    links:
+      - "db:db"
+    env_file:
+      - .env_dev
+    volumes:
+      - ./app:/opt/cigar_project/app
+      - ./migrations:/opt/cigar_project/migrations
+    healthcheck:
+      test: curl --fail localhost:5051/ || exit 1
+      interval: 10s
+      timeout: 10s
+      start_period: 20s
+      retries: 3
+
+networks:
+  network:
+
+volumes:
+  cigar_database:
+    external: true
+  cigar_pgadmin:
+    external: true
+  app:
+  migrations:
+
+
+#    driver:
+#      local
+#    driver_opts:
+#      type: 'none'
+##      device: '/var/lib/cigar_database'
+#  target: /var/lib/cigar_database
+#  cigar_pgadmin:
